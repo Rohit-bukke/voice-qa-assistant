@@ -1,0 +1,30 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Audio temporary files
+*.wav
+*.mp3
+*.webm
+*.ogg
+
+# Virtual Environments
+venv/
+.venv/
+env/
+ENV/
+
+# Model Caches
+.cache/
+whisper_cache/
+
+# OS Specific
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE / Editor Files
+.vscode/
+.idea/
+*.swp

@@ -1,0 +1,11 @@
+openai-whisper
+sounddevice
+numpy
+scipy
+langchain
+langchain-ollama
+pyttsx3
+fastapi
+uvicorn
+websockets
+python-multipart
