@@ -3,11 +3,11 @@
 REAL-TIME VOICE Q&A ASSISTANT
 ================================================================================
 A fully offline, hands-free conversational voice assistant:
-- Continuous Voice Activity Detection (VAD) & live turn-taking
-- DSP Butterworth Bandpass Preprocessing (300Hz - 3400Hz)
+- Continuous Voice Activity Detection (VAD) & dynamic ambient calibration
+- DSP Butterworth Bandpass Preprocessing (300Hz - 3400Hz) & Normalization
 - Local Whisper Speech-to-Text
-- Multi-turn Conversational Memory with LangChain + Local Ollama (Llama 3.2)
-- Fast Offline Text-to-Speech (pyttsx3)
+- Multi-turn Sliding-Window Memory with LangChain + Local Ollama (Llama 3.2)
+- Sentence-level Streaming TTS Synthesis Pipeline for ultra-low latency
 ================================================================================
 """
 
@@ -21,7 +21,13 @@ import threading
 import numpy as np
 import sounddevice as sd
 from scipy.io.wavfile import write as wav_write
-import pyttsx3
+
+# Ensure UTF-8 stdout on Windows
+if sys.platform == "win32" and hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 try:
     import whisper
@@ -30,11 +36,12 @@ except ImportError:
 
 try:
     from langchain_ollama import ChatOllama
-    from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 except ImportError:
     ChatOllama = None
 
 from audio_dsp import preprocess_speech_audio
+from tts_manager import TTSManager
+from memory_manager import SlidingWindowMemory
 
 
 # ==============================================================================
@@ -46,7 +53,6 @@ CHUNK_SIZE = int(DEFAULT_SAMPLE_RATE * CHUNK_DURATION)
 
 DEFAULT_WHISPER_MODEL = "base"
 DEFAULT_OLLAMA_MODEL = "llama3.2"
-DEFAULT_TTS_RATE = 175
 
 EXIT_PHRASES = {
     "stop", "exit", "quit", "goodbye", "bye", "terminate",
@@ -68,7 +74,7 @@ def calibrate_ambient_noise(sample_rate=DEFAULT_SAMPLE_RATE, duration=1.5):
     """
     Measures the baseline background noise level for dynamic VAD thresholding.
     """
-    print("🎙️  Calibrating microphone for ambient noise... (please stay quiet for a second)")
+    print("[VAD] Calibrating microphone for ambient noise... (please stay quiet for a moment)")
     num_samples = int(duration * sample_rate)
     recording = sd.rec(num_samples, samplerate=sample_rate, channels=1, dtype="float32")
     sd.wait()
@@ -81,7 +87,7 @@ def calibrate_ambient_noise(sample_rate=DEFAULT_SAMPLE_RATE, duration=1.5):
         
     avg_noise = np.mean(rms_values) if rms_values else 0.005
     speech_threshold = max(avg_noise * 2.8, 0.012)
-    print(f" Ambient noise baseline: {avg_noise:.5f} | Speech threshold: {speech_threshold:.5f}\n")
+    print(f" Ambient baseline: {avg_noise:.5f} | Speech threshold: {speech_threshold:.5f}\n")
     return speech_threshold
 
 
@@ -100,8 +106,6 @@ def listen_handsfree_vad(
     stop_event = threading.Event()
 
     def audio_callback(indata, frames, time_info, status):
-        if status:
-            pass
         audio_queue.put(indata.copy())
 
     recorded_chunks = []
@@ -109,7 +113,7 @@ def listen_handsfree_vad(
     silence_start_time = None
     speech_start_time = None
 
-    print("🟢 Assistant is listening live... Speak anytime (say 'exit' or 'stop' to quit)")
+    print(" Assistant is listening live... Speak naturally (say 'exit' or 'stop' to quit)")
     
     with sd.InputStream(
         samplerate=sample_rate,
@@ -143,20 +147,16 @@ def listen_handsfree_vad(
                     if silence_start_time is None:
                         silence_start_time = current_time
                     elif current_time - silence_start_time >= silence_duration:
-                        # Reached required silence after speaking
                         if total_duration >= min_speech_duration:
-                            print("  [Finished speaking. Processing utterance...]")
+                            print("  [Finished speaking. Processing speech...]")
                             break
                         else:
-                            # Ignored brief click/pop
                             is_speaking = False
                             recorded_chunks = []
                             silence_start_time = None
                 else:
-                    # Speech resumed during grace period
                     silence_start_time = None
 
-                # Safety max duration limit
                 if total_duration >= max_speech_duration:
                     print("  [Max utterance limit reached. Processing...]")
                     break
@@ -164,14 +164,13 @@ def listen_handsfree_vad(
     if not recorded_chunks:
         return None
 
-    full_audio = np.concatenate(recorded_chunks, axis=0)
-    return full_audio
+    return np.concatenate(recorded_chunks, axis=0)
 
 
 def record_push_to_talk(duration=5.0, sample_rate=DEFAULT_SAMPLE_RATE):
-    """Fallback manual recording mode (fixed-duration push-to-talk)."""
+    """Fallback manual recording mode (push-to-talk)."""
     input("\n>>> Press ENTER when ready to speak...")
-    print(f"🎤 Recording for {duration} seconds... Speak now!")
+    print(f" Recording for {duration} seconds... Speak now!")
     audio = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype="float32")
     sd.wait()
     return audio.flatten()
@@ -189,7 +188,7 @@ def transcribe_audio_chunk(whisper_model, audio_data, sample_rate=DEFAULT_SAMPLE
 
     # Step 1: Apply DSP Butterworth Bandpass & Normalization
     if use_dsp:
-        processed_audio = preprocess_speech_audio(audio_data, fs=sample_rate, apply_filter=True)
+        processed_audio = preprocess_speech_audio(audio_data, fs=sample_rate, apply_filter=True, apply_spectral_sub=False)
     else:
         processed_audio = audio_data
 
@@ -201,8 +200,7 @@ def transcribe_audio_chunk(whisper_model, audio_data, sample_rate=DEFAULT_SAMPLE
         
         # Step 3: Run Whisper STT
         result = whisper_model.transcribe(tmp_path, fp16=False, language="en")
-        transcription = result.get("text", "").strip()
-        return transcription
+        return result.get("text", "").strip()
     finally:
         if os.path.exists(tmp_path):
             try:
@@ -212,48 +210,51 @@ def transcribe_audio_chunk(whisper_model, audio_data, sample_rate=DEFAULT_SAMPLE
 
 
 # ==============================================================================
-# LLM INFERENCE (LANGCHAIN + OLLAMA WITH MEMORY)
+# STREAMING LLM & PIPELINED TTS
 # ==============================================================================
-def initialize_llm(model_name=DEFAULT_OLLAMA_MODEL):
-    """Initializes ChatOllama integration."""
-    if ChatOllama is None:
-        raise ImportError("langchain-ollama is not installed. Please run: pip install langchain-ollama")
-    return ChatOllama(model=model_name, temperature=0.7)
-
-
-def get_llm_response(llm, conversation_history, user_text):
+def stream_llm_and_speak(llm, memory: SlidingWindowMemory, tts: TTSManager, user_text: str) -> str:
     """
-    Appends the user message to history, requests a short conversational response,
-    and stores the assistant reply in history.
+    Streams tokens from Ollama. Once sentence delimiters (., !, ?) are encountered,
+    dispatches sentence chunks immediately to TTS for ultra-low latency response.
     """
-    conversation_history.append(HumanMessage(content=user_text))
+    memory.add_user_message(user_text)
+    messages = memory.get_messages_for_langchain()
+    
+    full_response = []
+    sentence_buffer = ""
+    sentence_delimiters = {".", "!", "?", "\n"}
+    start_time = time.time()
+
+    print(" Assistant: ", end="", flush=True)
+
     try:
-        response = llm.invoke(conversation_history)
-        reply = response.content.strip()
-        conversation_history.append(AIMessage(content=reply))
-        return reply
+        for chunk in llm.stream(messages):
+            token = chunk.content
+            print(token, end="", flush=True)
+            full_response.append(token)
+            sentence_buffer += token
+
+            # Check if sentence boundary formed
+            if any(punct in sentence_buffer for punct in sentence_delimiters) and len(sentence_buffer.strip()) > 15:
+                # Speak sentence
+                tts.speak(sentence_buffer.strip(), block=True)
+                sentence_buffer = ""
+
+        # Speak remaining buffer
+        if sentence_buffer.strip():
+            tts.speak(sentence_buffer.strip(), block=True)
+
+        print()  # newline
+        complete_text = "".join(full_response).strip()
+        latency = round(time.time() - start_time, 2)
+        memory.add_ai_message(complete_text, latency_sec=latency)
+        return complete_text
+
     except Exception as e:
-        error_msg = f"Sorry, I encountered an error with Ollama: {e}"
-        print(f"⚠️  LLM Error: {e}")
+        error_msg = f"Error during Ollama inference: {e}"
+        print(f"\n[LLM Error] {e}")
+        tts.speak("Sorry, I ran into an issue communicating with the local model.")
         return error_msg
-
-
-# ==============================================================================
-# TEXT-TO-SPEECH (TTS)
-# ==============================================================================
-def initialize_tts(speech_rate=DEFAULT_TTS_RATE):
-    """Initializes offline pyttsx3 engine."""
-    engine = pyttsx3.init()
-    engine.setProperty("rate", speech_rate)
-    return engine
-
-
-def speak_reply(tts_engine, text):
-    """Speaks the response out loud synchronously."""
-    if not text:
-        return
-    tts_engine.say(text)
-    tts_engine.runAndWait()
 
 
 # ==============================================================================
@@ -274,7 +275,7 @@ def main():
     args = parser.parse_args()
 
     print("=" * 70)
-    print(" 🎙️  REAL-TIME CONVERSATIONAL VOICE Q&A ASSISTANT")
+    print(" [VOICE ASSISTANT] REAL-TIME CONVERSATIONAL SYSTEM")
     print("=" * 70)
     print(f" Mode            : {'Hands-Free Continuous (VAD)' if args.mode == 'continuous' else 'Push-to-Talk (Manual)'}")
     print(f" Whisper STT     : '{args.whisper_model}' (Local)")
@@ -282,28 +283,23 @@ def main():
     print(f" DSP Bandpass    : {'Enabled (300Hz-3400Hz Butterworth)' if not args.no_dsp else 'Disabled'}")
     print("=" * 70)
 
-    # Check Whisper
     if whisper is None:
-        print("❌ Error: 'openai-whisper' package is required. Install with: pip install openai-whisper")
+        print("[Error] 'openai-whisper' package is required. Install with: pip install openai-whisper")
         sys.exit(1)
 
-    print("\n⏳ Loading Whisper model...")
+    print("\n Loading Whisper model...")
     whisper_model = whisper.load_model(args.whisper_model)
 
-    print("⏳ Connecting to local Ollama LLM...")
-    llm = initialize_llm(args.model)
+    print(" Connecting to local Ollama LLM...")
+    if ChatOllama is not None:
+        llm = ChatOllama(model=args.model, temperature=0.7)
+    else:
+        print("[Error] langchain-ollama is missing. Install with: pip install langchain-ollama")
+        sys.exit(1)
 
-    print("⏳ Initializing Text-to-Speech engine...")
-    tts_engine = initialize_tts()
-
-    # System instruction optimized for spoken dialogue
-    conversation_history = [
-        SystemMessage(content=(
-            "You are a friendly, intelligent, and concise real-time voice assistant. "
-            "Respond naturally in 2-3 concise sentences suitable for spoken audio conversation. "
-            "Avoid markdown tables, markdown formatting, or long lists."
-        ))
-    ]
+    print(" Initializing Text-to-Speech Engine...")
+    tts_manager = TTSManager(rate=175)
+    memory = SlidingWindowMemory(max_turns=10)
 
     # VAD Noise Calibration
     if args.mode == "continuous":
@@ -311,7 +307,7 @@ def main():
     else:
         threshold = 0.015
 
-    print("✨ System Ready! Start speaking naturally.\n")
+    print(" System Ready! Start speaking naturally.\n")
 
     try:
         while True:
@@ -329,7 +325,7 @@ def main():
                 continue
 
             # 2. Transcribe with Whisper (+ DSP bandpass)
-            print("📝 Transcribing speech...")
+            print(" Transcribing speech...")
             user_text = transcribe_audio_chunk(
                 whisper_model,
                 raw_audio,
@@ -341,25 +337,20 @@ def main():
                 print("  (No intelligible speech detected)")
                 continue
 
-            print(f"\n👤 You: \"{user_text}\"")
+            print(f"\n You: \"{user_text}\"")
 
             # Check exit phrases
             clean_text = user_text.lower().strip(".,!? ")
             if clean_text in EXIT_PHRASES or any(p in clean_text for p in ["exit assistant", "stop assistant", "goodbye assistant"]):
-                print("👋 Assistant: Goodbye! Have a great day.")
-                speak_reply(tts_engine, "Goodbye! Have a great day.")
+                print(" Assistant: Goodbye! Have a wonderful day.")
+                tts_manager.speak("Goodbye! Have a wonderful day.")
                 break
 
-            # 3. LLM Reasoning with Memory
-            print("🤔 Assistant thinking...")
-            reply = get_llm_response(llm, conversation_history, user_text)
-            print(f"🤖 Assistant: \"{reply}\"\n")
-
-            # 4. Speak Reply
-            speak_reply(tts_engine, reply)
+            # 3. Stream LLM & Pipelined TTS
+            stream_llm_and_speak(llm, memory, tts_manager, user_text)
 
     except KeyboardInterrupt:
-        print("\n\n🛑 Conversation ended by user. Goodbye!")
+        print("\n\n Conversation ended. Goodbye!")
 
 
 if __name__ == "__main__":
