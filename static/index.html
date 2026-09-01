@@ -7,291 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg-gradient: radial-gradient(circle at 50% 20%, #131722 0%, #0a0c10 100%);
-      --surface-card: rgba(22, 27, 39, 0.75);
-      --border-color: rgba(255, 255, 255, 0.08);
-      --accent-cyan: #00f2fe;
-      --accent-blue: #4facfe;
-      --accent-purple: #8a2be2;
-      --text-main: #f0f4f8;
-      --text-muted: #94a3b8;
-      --success: #10b981;
-      --danger: #ef4444;
-    }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    body {
-      font-family: 'Inter', sans-serif;
-      background: var(--bg-gradient);
-      color: var(--text-main);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: space-between;
-      overflow-x: hidden;
-      padding: 24px 16px;
-    }
-
-    header {
-      width: 100%;
-      max-width: 900px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 24px;
-      background: var(--surface-card);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      margin-bottom: 20px;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .brand-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 10px;
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 18px;
-      box-shadow: 0 0 16px rgba(0, 242, 254, 0.4);
-    }
-
-    .brand-title {
-      font-size: 1.1rem;
-      font-weight: 700;
-      letter-spacing: -0.5px;
-      background: linear-gradient(90deg, #ffffff, var(--accent-cyan));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-
-    .badges {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .badge {
-      font-size: 0.75rem;
-      font-weight: 500;
-      padding: 4px 10px;
-      border-radius: 20px;
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--border-color);
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      gap: 5px;
-    }
-
-    .badge-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--success);
-      box-shadow: 0 0 8px var(--success);
-    }
-
-    main {
-      width: 100%;
-      max-width: 900px;
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .chat-container {
-      flex: 1;
-      min-height: 380px;
-      max-height: 480px;
-      overflow-y: auto;
-      background: var(--surface-card);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--border-color);
-      border-radius: 20px;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      scroll-behavior: smooth;
-    }
-
-    .chat-container::-webkit-scrollbar {
-      width: 6px;
-    }
-    .chat-container::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 3px;
-    }
-
-    .msg {
-      max-width: 80%;
-      padding: 12px 18px;
-      border-radius: 16px;
-      line-height: 1.5;
-      font-size: 0.95rem;
-      animation: fadeIn 0.3s ease-in-out;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(8px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .msg.user {
-      align-self: flex-end;
-      background: linear-gradient(135deg, #2563eb, #1d4ed8);
-      color: #fff;
-      border-bottom-right-radius: 4px;
-      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
-    }
-
-    .msg.assistant {
-      align-self: flex-start;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid var(--border-color);
-      color: var(--text-main);
-      border-bottom-left-radius: 4px;
-    }
-
-    .msg.system {
-      align-self: center;
-      background: rgba(255, 255, 255, 0.03);
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      border-radius: 12px;
-      padding: 6px 14px;
-    }
-
-    .meta-tag {
-      font-size: 0.72rem;
-      color: rgba(255, 255, 255, 0.5);
-      margin-top: 4px;
-      display: block;
-      font-family: 'JetBrains Mono', monospace;
-    }
-
-    .controls-panel {
-      background: var(--surface-card);
-      backdrop-filter: blur(12px);
-      border: 1px solid var(--border-color);
-      border-radius: 20px;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 16px;
-    }
-
-    #visualizer {
-      width: 100%;
-      height: 60px;
-      border-radius: 10px;
-      background: rgba(0, 0, 0, 0.3);
-    }
-
-    .mic-action-group {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-    }
-
-    .btn-mic {
-      width: 76px;
-      height: 76px;
-      border-radius: 50%;
-      border: none;
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-blue));
-      color: #0d1117;
-      font-size: 28px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 0 24px rgba(0, 242, 254, 0.4);
-      transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-
-    .btn-mic:hover {
-      transform: scale(1.08);
-      box-shadow: 0 0 35px rgba(0, 242, 254, 0.6);
-    }
-
-    .btn-mic.recording {
-      background: linear-gradient(135deg, #ff416c, #ff4b2b);
-      box-shadow: 0 0 30px rgba(255, 65, 108, 0.8);
-      animation: pulse 1.2s infinite alternate;
-      color: #fff;
-    }
-
-    @keyframes pulse {
-      0% { transform: scale(1.0); }
-      100% { transform: scale(1.12); }
-    }
-
-    .status-text {
-      font-size: 0.9rem;
-      color: var(--text-muted);
-      font-weight: 500;
-    }
-
-    .toolbar {
-      width: 100%;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      border-top: 1px solid var(--border-color);
-      padding-top: 12px;
-    }
-
-    .switch-label {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: pointer;
-    }
-
-    .btn-secondary {
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid var(--border-color);
-      color: var(--text-main);
-      padding: 6px 12px;
-      border-radius: 8px;
-      font-size: 0.8rem;
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.12);
-    }
-
-    footer {
-      margin-top: 14px;
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      text-align: center;
-    }
-  </style>
+  <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
 
@@ -303,39 +19,51 @@
         <div style="font-size: 0.75rem; color: var(--text-muted);">Whisper STT • Ollama Llama 3.2 • DSP Filter</div>
       </div>
     </div>
-    <div class="badges">
+    <div class="header-actions">
       <div class="badge"><span class="badge-dot"></span> Offline / Local</div>
-      <button class="btn-secondary" onclick="resetChat()">Reset Context</button>
+      <button class="btn-secondary" onclick="createNewSession()">+ New Session</button>
+      <button class="btn-secondary" onclick="exportCurrentSession()">Export MD</button>
     </div>
   </header>
 
   <main>
-    <div class="chat-container" id="chat">
-      <div class="msg system">
-        ✨ Welcome! Click the microphone or hold to speak. The assistant will transcribe your speech, reason with Llama 3.2, and speak back in real time.
-      </div>
-    </div>
+    <aside class="sidebar">
+      <div class="sidebar-title">Conversations</div>
+      <div class="session-list" id="sessionList"></div>
+    </aside>
 
-    <div class="controls-panel">
-      <canvas id="visualizer"></canvas>
-
-      <div class="mic-action-group">
-        <button id="micBtn" class="btn-mic" onclick="toggleRecording()">
-          🎤
-        </button>
+    <div class="main-content">
+      <div class="chat-container" id="chat">
+        <div class="msg system">
+          ✨ Welcome! Click the microphone or hold to speak. The assistant will transcribe your speech, reason with Llama 3.2, and speak back in real time.
+        </div>
       </div>
 
-      <div id="status" class="status-text">Click microphone to speak</div>
+      <div class="controls-panel">
+        <canvas id="visualizer"></canvas>
 
-      <div class="toolbar">
-        <label class="switch-label">
-          <input type="checkbox" id="dspToggle" checked>
-          <span>DSP Butterworth Filter (300Hz-3400Hz)</span>
-        </label>
-        <label class="switch-label">
-          <input type="checkbox" id="ttsToggle" checked>
-          <span>Spoken TTS Output</span>
-        </label>
+        <div class="mic-action-group">
+          <button id="micBtn" class="btn-mic" onclick="toggleRecording()">
+            🎤
+          </button>
+        </div>
+
+        <div id="status" class="status-text">Click microphone to speak</div>
+
+        <div class="toolbar">
+          <label class="switch-label">
+            <input type="checkbox" id="dspToggle" checked>
+            <span>Butterworth Bandpass (300Hz-3400Hz)</span>
+          </label>
+          <label class="switch-label">
+            <input type="checkbox" id="spectralSubToggle">
+            <span>Spectral Subtraction</span>
+          </label>
+          <label class="switch-label">
+            <input type="checkbox" id="ttsToggle" checked>
+            <span>Spoken TTS Output</span>
+          </label>
+        </div>
       </div>
     </div>
   </main>
@@ -344,183 +72,6 @@
     Built with Python, Whisper, LangChain, Ollama & DSP Bandpass Filtering • Privacy-First On-Device AI
   </footer>
 
-  <script>
-    let isRecording = false;
-    let mediaRecorder = null;
-    let audioChunks = [];
-    let audioContext = null;
-    let analyser = null;
-    let animationId = null;
-
-    const micBtn = document.getElementById("micBtn");
-    const statusText = document.getElementById("status");
-    const chatContainer = document.getElementById("chat");
-    const canvas = document.getElementById("visualizer");
-    const canvasCtx = canvas.getContext("2d");
-
-    // Initialize visualizer canvas dimensions
-    function resizeCanvas() {
-      canvas.width = canvas.parentElement.clientWidth - 40;
-      canvas.height = 60;
-    }
-    window.addEventListener("resize", resizeCanvas);
-    resizeCanvas();
-
-    function drawWaveform() {
-      if (!analyser) return;
-      const bufferLength = analyser.frequencyBinCount;
-      const dataArray = new Uint8Array(bufferLength);
-      analyser.getByteTimeDomainData(dataArray);
-
-      canvasCtx.fillStyle = 'rgba(15, 19, 29, 0.4)';
-      canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
-
-      canvasCtx.lineWidth = 2;
-      canvasCtx.strokeStyle = isRecording ? '#00f2fe' : '#334155';
-      canvasCtx.beginPath();
-
-      const sliceWidth = canvas.width * 1.0 / bufferLength;
-      let x = 0;
-
-      for (let i = 0; i < bufferLength; i++) {
-        const v = dataArray[i] / 128.0;
-        const y = v * (canvas.height / 2);
-
-        if (i === 0) {
-          canvasCtx.moveTo(x, y);
-        } else {
-          canvasCtx.lineTo(x, y);
-        }
-        x += sliceWidth;
-      }
-
-      canvasCtx.lineTo(canvas.width, canvas.height / 2);
-      canvasCtx.stroke();
-
-      animationId = requestAnimationFrame(drawWaveform);
-    }
-
-    async function toggleRecording() {
-      if (isRecording) {
-        stopRecording();
-      } else {
-        startRecording();
-      }
-    }
-
-    async function startRecording() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const source = audioContext.createMediaStreamSource(stream);
-        analyser = audioContext.createAnalyser();
-        analyser.fftSize = 2048;
-        source.connect(analyser);
-        drawWaveform();
-
-        mediaRecorder = new MediaRecorder(stream);
-        audioChunks = [];
-
-        mediaRecorder.ondataavailable = event => {
-          if (event.data.size > 0) {
-            audioChunks.push(event.data);
-          }
-        };
-
-        mediaRecorder.onstop = async () => {
-          const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-          await processVoiceInput(audioBlob);
-          stream.getTracks().forEach(track => track.stop());
-        };
-
-        mediaRecorder.start();
-        isRecording = true;
-        micBtn.classList.add("recording");
-        micBtn.innerHTML = "⏹️";
-        statusText.innerText = "Listening... Click to send.";
-      } catch (err) {
-        alert("Microphone access denied or not supported: " + err.message);
-      }
-    }
-
-    function stopRecording() {
-      if (mediaRecorder && isRecording) {
-        mediaRecorder.stop();
-        isRecording = false;
-        micBtn.classList.remove("recording");
-        micBtn.innerHTML = "🎤";
-        statusText.innerText = "Processing audio & reasoning...";
-      }
-    }
-
-    async function processVoiceInput(blob) {
-      const formData = new FormData();
-      formData.append("file", blob, "speech.wav");
-      const useDsp = document.getElementById("dspToggle").checked;
-
-      try {
-        const response = await fetch(`/api/process-audio?use_dsp=${useDsp}`, {
-          method: "POST",
-          body: formData
-        });
-
-        const data = await response.json();
-
-        if (data.user) {
-          appendMessage("user", data.user);
-        }
-
-        if (data.reply) {
-          appendMessage("assistant", data.reply, `${data.latency_sec}s latency • DSP: ${data.dsp_applied ? 'Active' : 'Off'}`);
-          
-          if (document.getElementById("ttsToggle").checked) {
-            speakBrowserTTS(data.reply);
-          }
-        } else if (data.error) {
-          appendMessage("system", "⚠️ " + data.error);
-        }
-
-        statusText.innerText = "Ready! Click microphone to speak again.";
-      } catch (err) {
-        appendMessage("system", "❌ Error communicating with backend server: " + err.message);
-        statusText.innerText = "Connection error. Ensure web_app.py is running.";
-      }
-    }
-
-    function appendMessage(sender, text, meta = "") {
-      const msgDiv = document.createElement("div");
-      msgDiv.className = `msg ${sender}`;
-      msgDiv.innerHTML = text;
-
-      if (meta) {
-        const metaSpan = document.createElement("span");
-        metaSpan.className = "meta-tag";
-        metaSpan.innerText = meta;
-        msgDiv.appendChild(metaSpan);
-      }
-
-      chatContainer.appendChild(msgDiv);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
-
-    function speakBrowserTTS(text) {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-        window.speechSynthesis.speak(utterance);
-      }
-    }
-
-    async function resetChat() {
-      await fetch("/api/reset", { method: "POST" });
-      chatContainer.innerHTML = '<div class="msg system">✨ Conversation history cleared.</div>';
-    }
-
-    // Initial silent visualizer draw
-    drawWaveform();
-  </script>
+  <script src="/static/app.js"></script>
 </body>
 </html>
