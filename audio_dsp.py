@@ -163,7 +163,7 @@ def preprocess_speech_audio(audio_data, fs=16000, apply_filter=True, apply_spect
     """
     audio = np.asarray(audio_data, dtype=np.float32).flatten()
     
-    if len(audio) == 0:
+    if len(audio) == 0:   
         return audio
         
     # Step 1: Remove DC bias
